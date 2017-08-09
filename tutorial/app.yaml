@@ -1,0 +1,33 @@
+#application: tutorial-trial
+#version: 1
+runtime: python27
+api_version: 1
+threadsafe: yes
+
+#[START env]
+env_variables:
+    PUBSUB_TOPIC: topic1
+    # This token is used to verify that requests originate from your
+    # application. It can be any sufficiently random string.
+    PUBSUB_VERIFICATION_TOKEN: 3797
+#[END env]
+
+handlers:
+- url: /favicon\.ico
+  static_files: favicon.ico
+  upload: favicon\.ico
+
+- url: /images
+  static_dir: images
+
+- url: /stylesheets
+  static_dir: /stylesheets
+
+- url: .*
+  script: main.app
+
+libraries:
+- name: webapp2
+  version: latest
+- name: jinja2
+  version: latest

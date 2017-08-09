@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <title>Notifications/Home</title>
+  </head>
+
+  <body>
+    <h1>Notifications</h1>
+
+    <!--The notification class currently doesn't actually mean anything-->
+
+    {% for notification in notifications %}
+    <div class="notification">
+      <p>Object {{notification.event_type}} by {{notification.requester_email_address}}.</p>
+      <p><small>{{notification.date.strftime('%B %d %Y %I:%M')}}</small></p>
+    </div>
+    {% endfor %}
+
+  </body>
+</html>
