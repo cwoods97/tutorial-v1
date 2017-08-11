@@ -9,7 +9,7 @@ import logging
 import base64
 import json
 import urllib
-import cloudstorage as gcs
+import lib.cloudstorage as gcs
 from google.cloud import pubsub
 from google.appengine.ext import ndb
 from google.appengine.ext import blobstore
@@ -57,16 +57,16 @@ class MainHandler(webapp2.RequestHandler):
 
   def get(self):
     # Fetch all notifications in reverse date order
-    notification = create_notification('photo.jpg', 'OBJECT_DELETE', 'user@yay.com', None, None)
-    notification.put()
+    #notification = create_notification('photo.jpg', 'OBJECT_DELETE', 'user@yay.com')
+    #notification.put()
     notifications = Notification.query().order(-Notification.date).fetch()
     template_values = {'notifications':notifications}
     template = jinja_environment.get_template("notifications.html")
     # Write to the appropriate html file
     self.response.write(template.render(template_values))
-
+'''
 # All photos page (displays thumbnails).
-'''class PhotosHandler(webapp2.RequestHandler):
+class PhotosHandler(webapp2.RequestHandler):
   def get(self):
     # Get thumbnail references from datastore in reverse date order
     thumbnail_references = ThumbnailReference.query().order(-ThumbnailReference.date).fetch()
@@ -104,10 +104,11 @@ class ReceiveMessage(webapp2.RequestHandler):
       self.response.status = 404
       return
 
+    # Assumes message is a dict of attributes. Not sure if this is true.
     logging.debug('Post body: {}'.format(self.request.body))
     message = json.loads(urllib.unquote(self.request.body).rstrip('='))
 
-    # Invalidate the cache
+    # Invalidate the cache. Not actually sure what this does.
     memcache.delete(MESSAGE_CACHE_KEY)
 
     event_type = message.get('eventType')
@@ -115,40 +116,44 @@ class ReceiveMessage(webapp2.RequestHandler):
     generation_number = str(message.get('objectGeneration'))
     overwrote_generation = message.get('overwroteGeneration')
     overwritten_by_generation = message.get('overwrittenByGeneration')
-    '''email = message.get('requesterEmailAddress')
+    email = message.get('requesterEmailAddress')
     # Add known contributors to datastore if not already added.
     # Contributors are those who have performed actions on the album,
     # not necessarily just those who have uploaded photos.
-    if email is None:
+    '''if email is None:
       email = 'Unknown'
     else:
-      contributors = Contributor.query().fetch().filter(email=email)
       # Only add contributor if not already in datastore.
-      if len(contributors.keys()) == 0:
+      this_contributor = Contributor.query(email=email).fetch()
+      if len(this_contributor.keys()) == 0:
         # Specify some default photo to create contributor with here
         new_contributor = Contributor(email=email)
         new_contributor.put()
     index = photo_name.index(".jpg")
-    thumbnail_key = photo_name[:index] + generation_number + photo_name[index:]'''
+    thumbnail_key = photo_name[:index] + generation_number + photo_name[index:]
 
-    # Perform profile pic logic here; create string of what profile name would
-    # be. Change
-    # notification to "___ changed their profile picture" or "goodbye old
-    # profile" depending on if the FINALIZE or DELETE/ARCHIVE message was
-    # received (rather than general object change messages).
+    # Check to make sure user is not attempting invalid profile picture upload.
+    # If so, send specialized notification and do not perform any
+    # action with thumbnails or photos.
+    if photo_name.startswith('profile-'):
+        new_notification = create_notification(photo_name, email, invalid_profile=True)
+        new_notification.put()
+        return
+'''
+    # Check if user is attempting to upload profile picture for themself.
     expected_profile_pic = 'profile-' + email + '.jpg'
     profile = False
     if photo_name == expected_profile_pic:
-      profile = True # Might be repetitive with following line
-      new_notification = create_notification(photo_name, event_type, email, overwrote_generation, overwritten_by_generation, profile=True)
+      is_profile = True # Might be repetitive with following line
+      new_notification = create_notification(photo_name, event_type, email, overwrote_generation=overwrote_generation, overwritten_by_generation=overwritten_by_generation, profile=True)
     else:
-      new_notification = create_notification(photo_name, event_type, email, overwrote_generation, overwritten_by_generation)
+      new_notification = create_notification(photo_name, event_type, email, overwrote_generation=overwrote_generation, overwritten_by_generation=overwritten_by_generation)
     new_notification.put() # put into database
 
-    # If create message: get photo from photos gcs bucket, shrink to thumbnail,
+    '''# If create message: get photo from photos gcs bucket, shrink to thumbnail,
     # and store thumbnail in thumbnails gcs bucket. Store thumbnail reference in
     # datastore.
-    '''if event_type == 'OBJECT_FINALIZE':
+    if event_type == 'OBJECT_FINALIZE':
       image = get_photo(photo_name) # not implemented
       thumbnail = get_thumbnail(image)
       store_thumbnail_in_gcs(thumbnail_key) # store under name thumbnail_key. Not implemented
@@ -173,9 +178,11 @@ class ReceiveMessage(webapp2.RequestHandler):
     # an undesired page?
     self.redirect('/')
 
-# Given an array of attributes, create notification
-def create_notification(photo_name, event_type, requester_email_address, overwrote_generation, overwritten_by_generation, profile=False):
-  if profile:
+# Create notification
+def create_notification(photo_name, event_type, requester_email_address, overwrote_generation=None, overwritten_by_generation=None, profile=False, invalid_profile=False):
+  if invalid_profile:
+    event_type = 'invalid profile picture update attempted' # change to more comprehensive message
+  elif profile:
     if event_type == 'OBJECT_FINALIZE':
       event_type = 'profile picture updated, finalize' # change to more comprehensive message
     elif event_type == 'OBJECT_ARCHIVE' or event_type == 'OBJECT_DELETE':
@@ -200,9 +207,9 @@ def create_notification(photo_name, event_type, requester_email_address, overwro
       event_type = 'metadata updated'
 
   return Notification(requester_email_address=requester_email_address, event_type=event_type, photo_name=photo_name)
-
+'''
 # Shrinks a given image to thumbnail size.
-'''def get_thumbnail(image):
+def get_thumbnail(image):
   image.resize(width=80, height=100)
   return image.execute_transforms(output_encoding=images.JPEG)
 
