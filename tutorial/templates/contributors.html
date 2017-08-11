@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <title>Contributors</title>
+  </head>
+
+  <body>
+
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/photos">Photos</a></li>
+      <li><a href="/contributors">Contributors</a></li>
+    </ul>
+
+    <h1>Known Contributors</h1>
+
+    <!--The contributors class currently doesn't actually mean anything-->
+
+    {% for contributor in contributors %}
+    <div class="contributor">
+      <p>{{contributor.email}}</p>
+    </div>
+    {% endfor %}
+
+  </body>
+</html>
