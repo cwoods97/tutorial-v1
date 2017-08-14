@@ -19,9 +19,8 @@
 
     {% for notification in notifications %}
     <div class="notification">
-      <p>{{notification.photo_name}}</p>
-      <p>Object {{notification.event_type}} by {{notification.requester_email_address}}.</p>
-      <p><small>{{notification.date.strftime('%B %d %Y %I:%M')}}</small></p>
+      <p>{{notification.message}}</p>
+      <p><small>{{notification.date.strftime('%B %d %Y %I:%M')}} UTC</small></p>
     </div>
     {% endfor %}
 

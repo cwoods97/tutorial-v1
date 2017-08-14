@@ -10,7 +10,6 @@ import base64
 import json
 import urllib
 import lib.cloudstorage as gcs
-from google.cloud import pubsub
 from google.appengine.ext import ndb
 from google.appengine.ext import blobstore
 #from google.appengine.ext webapp import blobstore_handlers
@@ -23,14 +22,14 @@ template_dir = os.path.join(os.path.dirname(__file__), 'templates')
 jinja_environment = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir))
 
 THUMBNAIL_BUCKET = 'tutorial-thumbnails'
+PHOTO_BUCKET = 'tutorial-trial.appspot.com'
 
 # A notification has a requester, event type, photo name,
 # and date/time of creation
 class Notification(ndb.Model):
-  requester_email_address = ndb.StringProperty()
-  event_type = ndb.StringProperty()
-  photo_name = ndb.StringProperty()
+  message = ndb.StringProperty()
   date = ndb.DateTimeProperty(auto_now_add=True)
+  generation = ndb.StringProperty()
 
 # A thumbnail reference has the name of the photo,
 # the name of the poster, and the date it was posted.
@@ -48,36 +47,30 @@ class Contributor(ndb.Model):
 
 # Home/news feed page (notification listing).
 class MainHandler(webapp2.RequestHandler):
-  # Initialize the Pub/Sub resources.
-  def __init__(self, request=None, response=None):
-    super(MainHandler, self).__init__(request, response)
-    #client = pubsub.Client(project='tutorial-trial')
-    #topic = client.topic('tutorial-trial.appspot.com')
-    #subscription = topic.subscription('subscription')
-
   def get(self):
     # Fetch all notifications in reverse date order
-    #notification = create_notification('photo.jpg', 'OBJECT_DELETE', 'user@yay.com')
-    #notification.put()
     notifications = Notification.query().order(-Notification.date).fetch()
     template_values = {'notifications':notifications}
     template = jinja_environment.get_template("notifications.html")
     # Write to the appropriate html file
     self.response.write(template.render(template_values))
-'''
+
 # All photos page (displays thumbnails).
-class PhotosHandler(webapp2.RequestHandler):
+'''class PhotosHandler(webapp2.RequestHandler):
   def get(self):
     # Get thumbnail references from datastore in reverse date order
     thumbnail_references = ThumbnailReference.query().order(-ThumbnailReference.date).fetch()
     # thumbnails should be in same order as thumbnail_references
-    thumbnails = []
+    # possibly make a dict mapping references to thumbnails instead
+    thumbnails = {}
     # For loop may not be ordered
     for thumbnail_reference in thumbnail_references:
-      img = get_photo(thumbnail_reference.thumbnail_name)
-      thumbnails.append(img.read())
+      img = get_photo(thumbnail_reference.thumbnail_name, THUMBNAIL_BUCKET)
+      self.response.headers['Content-Type'] = 'image/jpeg'
+      self.response.write(img)
+      thumbnails[thumbnail_reference] = img
       img.close()
-    template_values = {'thumbnail_references':thumbnail_references, 'thumbnails':thumbnails}
+    template_values = {'thumbnails':thumbnails}
     template = jinja_environment.get_template("photos.html")
     # Make header so images are displayed correctly. Otherwise they might be
     # plain text?
@@ -100,36 +93,33 @@ class ContributorsHandler(webapp2.RequestHandler):
 # For receiving Cloud Pub/Sub push messages.
 class ReceiveMessage(webapp2.RequestHandler):
   def post(self):
-    if constants.SUBSCRIPTION_UNIQUE_TOKEN != self.request.get('token'):
-      self.response.status = 404
-      return
-
-    # Assumes message is a dict of attributes. Not sure if this is true.
     logging.debug('Post body: {}'.format(self.request.body))
     message = json.loads(urllib.unquote(self.request.body).rstrip('='))
+    attributes = message['message']['attributes']
 
-    # Invalidate the cache. Not actually sure what this does.
-    memcache.delete(MESSAGE_CACHE_KEY)
+    self.response.status = 204
 
-    event_type = message.get('eventType')
-    photo_name = message.get('objectId')
-    generation_number = str(message.get('objectGeneration'))
-    overwrote_generation = message.get('overwroteGeneration')
-    overwritten_by_generation = message.get('overwrittenByGeneration')
-    email = message.get('requesterEmailAddress')
+    event_type = attributes.get('eventType')
+    photo_name = attributes.get('objectId')
+    generation_number = str(attributes.get('objectGeneration'))
+    overwrote_generation = attributes.get('overwroteGeneration')
+    overwritten_by_generation = attributes.get('overwrittenByGeneration')
+    email = attributes.get('requesterEmailAddress')
+
     # Add known contributors to datastore if not already added.
     # Contributors are those who have performed actions on the album,
     # not necessarily just those who have uploaded photos.
-    '''if email is None:
+    if email is None:
       email = 'Unknown'
-    else:
+    '''else:
       # Only add contributor if not already in datastore.
       this_contributor = Contributor.query(email=email).fetch()
       if len(this_contributor.keys()) == 0:
         # Specify some default photo to create contributor with here
         new_contributor = Contributor(email=email)
         new_contributor.put()
-    index = photo_name.index(".jpg")
+    
+    index = photo_name.index(".JPG")
     thumbnail_key = photo_name[:index] + generation_number + photo_name[index:]
 
     # Check to make sure user is not attempting invalid profile picture upload.
@@ -138,25 +128,30 @@ class ReceiveMessage(webapp2.RequestHandler):
     if photo_name.startswith('profile-'):
         new_notification = create_notification(photo_name, email, invalid_profile=True)
         new_notification.put()
-        return
-'''
+        return'''
+
     # Check if user is attempting to upload profile picture for themself.
     expected_profile_pic = 'profile-' + email + '.jpg'
     profile = False
     if photo_name == expected_profile_pic:
       is_profile = True # Might be repetitive with following line
-      new_notification = create_notification(photo_name, event_type, email, overwrote_generation=overwrote_generation, overwritten_by_generation=overwritten_by_generation, profile=True)
+      new_notification = create_notification(photo_name, event_type, email, generation_number, overwrote_generation=overwrote_generation, overwritten_by_generation=overwritten_by_generation, profile=True)
     else:
-      new_notification = create_notification(photo_name, event_type, email, overwrote_generation=overwrote_generation, overwritten_by_generation=overwritten_by_generation)
+      new_notification = create_notification(photo_name, event_type, email, generation_number, overwrote_generation=overwrote_generation, overwritten_by_generation=overwritten_by_generation)
+    notifications = Notification.query().fetch()
+    for notification in notifications:
+      if new_notification == notification:
+        return
     new_notification.put() # put into database
 
-    '''# If create message: get photo from photos gcs bucket, shrink to thumbnail,
+    # If create message: get photo from photos gcs bucket, shrink to thumbnail,
     # and store thumbnail in thumbnails gcs bucket. Store thumbnail reference in
     # datastore.
-    if event_type == 'OBJECT_FINALIZE':
-      image = get_photo(photo_name) # not implemented
+
+    '''if event_type == 'OBJECT_FINALIZE':
+      image = get_photo(photo_name, PHOTO_BUCKET) # not implemented
       thumbnail = get_thumbnail(image)
-      store_thumbnail_in_gcs(thumbnail_key) # store under name thumbnail_key. Not implemented
+      store_thumbnail_in_gcs(self, thumbnail_key, thumbnail) # store under name thumbnail_key. Not implemented
       thumbnail_reference = ThumbnailReference(thumbnail_name=photo_name, thumbnail_key=thumbnail_key, poster_email_address=email)
       thumbnail_reference.put()
       image.close()
@@ -170,65 +165,66 @@ class ReceiveMessage(webapp2.RequestHandler):
     elif event_type == 'OBJECT_DELETE' or event_type == 'OBJECT_ARCHIVE':
       delete_thumbnail(thumbnail_key, THUMBNAIL_BUCKET)
       thumbnail_reference = ThumbnailReference.query(thumbnail_key=thumbnail_key)
-      thumbnail_reference.key.delete()
-    # No action performed if event_type is OBJECT_UPDATE'''
+      thumbnail_reference.key.delete()'''
+    # No action performed if event_type is OBJECT_UPDATE
 
-    self.response.status = 200
-    # Automatically refresh to notifications page? Will this force you to go to
-    # an undesired page?
-    self.redirect('/')
+    # self.response.status = 204
 
 # Create notification
-def create_notification(photo_name, event_type, requester_email_address, overwrote_generation=None, overwritten_by_generation=None, profile=False, invalid_profile=False):
+def create_notification(photo_name, event_type, requester_email_address, generation, overwrote_generation=None, overwritten_by_generation=None, profile=False, invalid_profile=False):
   if invalid_profile:
-    event_type = 'invalid profile picture update attempted' # change to more comprehensive message
+    message = 'Invalid profile picture update attempted: ' + photo_name + '.'
   elif profile:
     if event_type == 'OBJECT_FINALIZE':
-      event_type = 'profile picture updated, finalize' # change to more comprehensive message
+      message = requester_email_address + ' uploaded a new profile picture.'
     elif event_type == 'OBJECT_ARCHIVE' or event_type == 'OBJECT_DELETE':
-      event_type = 'profile picture updated, archive/delete' # change to more comprehensive message
+      message = requester_email_address + ' has removed their old profile picture.'
   else:
     if event_type == 'OBJECT_FINALIZE':
       if overwrote_generation is not None:
-        event_type = 'overwritten, finalize' # change to more comprehensive message
+        message = photo_name + ' was uploaded by ' + requester_email_address + ' and overwrote an older version of itself.'
       else:
-        event_type = 'created'
+        message = requester_email_address + ' uploaded ' + photo_name + '.'
     elif event_type == 'OBJECT_ARCHIVE':
       if overwritten_by_generation is not None:
-        event_type = 'overwritten, archive' # change to more comprehensive message
+        message = photo_name + ' was overwritten by a newer version, uploaded by ' + requester_email_address + '.'
       else:
-        event_type = 'archived'
+        message = photo_name + ' was archived by ' + requester_email_address + '.'
     elif event_type == 'OBJECT_DELETE':
       if overwritten_by_generation is not None:
-        event_type = 'overwritten, delete' # change to more comprehensive message
+        message = photo_name + ' was overwritten by a newer version, uploaded by ' + requester_email_address + '.'
       else:
-        event_type = 'deleted'
+        message = photo_name + ' was deleted by ' + requester_email_address + '.'
     else:
-      event_type = 'metadata updated'
+      message = 'The metadata of ' + photo_name + ' was updated by ' + requester_email_address + '.'
 
-  return Notification(requester_email_address=requester_email_address, event_type=event_type, photo_name=photo_name)
-'''
+  return Notification(message=message, generation=generation)
+
 # Shrinks a given image to thumbnail size.
-def get_thumbnail(image):
+'''def get_thumbnail(image):
   image.resize(width=80, height=100)
   return image.execute_transforms(output_encoding=images.JPEG)
 
 # Retrieve photo from GCS
 # Note: file must be closed elsewhere
-def get_photo(self, photo_name):
-  return gcs.open(photo_name)
+def get_photo(photo_name, bucket):
+  filename = '/gs/' + bucket + '/' + photo_name
+  gcs_file = gcs.open(filename)
+  return gcs_file.read()
 
 # Write photo to GCS thumbnail bucket
-def store_thumbnail_in_gcs(self, thumbnail_key)
+def store_thumbnail_in_gcs(self, thumbnail_key, thumbnail, bucket):
   write_retry_params = gcs.RetryParams(backoff_factor=1.1)
-  gcs_photo = gcs.open(thumbnail_key)
-  gcs_photo.close()
-  self.tmp_filenames_to_clean_up.append(thumbnail_key)
+  filename = '/gs/' + bucket + '/' + thumbnail_key
+  gcs_file = gcs.open(filename, retry_params=write_retry_params)
+  gcs_file.write(thumbnail)
+  gcs_file.close()
+  self.tmp_filenames_to_clean_up.append(filename)
 
 # Delete thumbnail from GCS bucket
-def delete_thumbnail(self, thumbnail_key, bucket)
-  file = '/gs/' + bucket + '/' + thumbnail_key
-  files.delete(file)'''
+def delete_thumbnail(thumbnail_key, bucket):
+  filename = '/gs/' + bucket + '/' + thumbnail_key
+  files.delete(filename)'''
 
 app = webapp2.WSGIApplication([
     ('/', MainHandler),

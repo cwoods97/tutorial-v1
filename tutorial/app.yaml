@@ -6,7 +6,8 @@ threadsafe: yes
 
 handlers:
 - url: /_ah/push-handlers/.*
-  script: main.APPLICATION
+  script: main.app
+  login: admin
 
 - url: /images
   static_dir: images

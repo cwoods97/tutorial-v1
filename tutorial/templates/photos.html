@@ -20,12 +20,12 @@
     thumbnails match up so that info from references can be assigned to the appropriate
     thumbnail immage-->
 
-    {% for thumbnail_reference in thumbnail_references %}
+    {% for key, value in thumbnails.iteritems() %}
     <div class="thumbnail">
-      <p>Thumbnail should be displayed here.</p>
-      <p>{{thumbnail_reference.thumbnail_name}}</p>
-      <p>{{thumbnail_reference.poster_email_address}}</p>
-      <p>{{thumbnail_reference.date}}</p>
+      <p>{{value}}</p>
+      <p>{{key.thumbnail_name}}</p>
+      <p>{{key.poster_email_address}}</p>
+      <p>{{key.date}} UTC</p>
     </div>
     {% endfor %}
 
