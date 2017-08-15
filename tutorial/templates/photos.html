@@ -18,14 +18,13 @@
     <!--The thumbnail class currently doesn't actually mean anything.
     Use a for loop where indices of thumbnail references and their corresponding
     thumbnails match up so that info from references can be assigned to the appropriate
-    thumbnail immage-->
+    thumbnail image-->
 
-    {% for key, value in thumbnails.iteritems() %}
+    {% for img_url, thumbnail_reference in thumbnails.iteritems() %}
     <div class="thumbnail">
-      <p>{{value}}</p>
-      <p>{{key.thumbnail_name}}</p>
-      <p>{{key.poster_email_address}}</p>
-      <p>{{key.date}} UTC</p>
+      <p>{{thumbnail_reference.thumbnail_name}}</p>
+      <img src='{{img_url}}'>
+      <p><small>{{thumbnail_reference.date.strftime('%B %d %Y %I:%M')}} UTC</small></p>
     </div>
     {% endfor %}
 

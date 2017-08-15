@@ -21,8 +21,8 @@ from google.appengine.api import files
 template_dir = os.path.join(os.path.dirname(__file__), 'templates')
 jinja_environment = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir))
 
-THUMBNAIL_BUCKET = 'tutorial-thumbnails'
-PHOTO_BUCKET = 'tutorial-trial.appspot.com'
+THUMBNAIL_BUCKET = 'thumbnails-bucket'
+PHOTO_BUCKET = 'shared-photo-album'
 
 # A notification has a requester, event type, photo name,
 # and date/time of creation
@@ -56,7 +56,7 @@ class MainHandler(webapp2.RequestHandler):
     self.response.write(template.render(template_values))
 
 # All photos page (displays thumbnails).
-'''class PhotosHandler(webapp2.RequestHandler):
+class PhotosHandler(webapp2.RequestHandler):
   def get(self):
     # Get thumbnail references from datastore in reverse date order
     thumbnail_references = ThumbnailReference.query().order(-ThumbnailReference.date).fetch()
@@ -65,18 +65,12 @@ class MainHandler(webapp2.RequestHandler):
     thumbnails = {}
     # For loop may not be ordered
     for thumbnail_reference in thumbnail_references:
-      img = get_photo(thumbnail_reference.thumbnail_name, THUMBNAIL_BUCKET)
-      self.response.headers['Content-Type'] = 'image/jpeg'
-      self.response.write(img)
-      thumbnails[thumbnail_reference] = img
-      img.close()
+      img_url = get_thumbnail(thumbnail_reference.thumbnail_key)
+      thumbnails[img_url] = thumbnail_reference
     template_values = {'thumbnails':thumbnails}
     template = jinja_environment.get_template("photos.html")
-    # Make header so images are displayed correctly. Otherwise they might be
-    # plain text?
-    self.response.headers['Content-Type'] = 'image/jpeg'
     # Write to appropriate html file
-    self.response.write(template.render(template_values))'''
+    self.response.write(template.render(template_values))
 
 # Contributors page (contributor emails).
 # LATER: also display contributor profile pics. Get
@@ -111,15 +105,15 @@ class ReceiveMessage(webapp2.RequestHandler):
     # not necessarily just those who have uploaded photos.
     if email is None:
       email = 'Unknown'
-    '''else:
+    else:
       # Only add contributor if not already in datastore.
       this_contributor = Contributor.query(email=email).fetch()
       if len(this_contributor.keys()) == 0:
         # Specify some default photo to create contributor with here
         new_contributor = Contributor(email=email)
         new_contributor.put()
-    
-    index = photo_name.index(".JPG")
+
+    index = photo_name.index(".jpg")
     thumbnail_key = photo_name[:index] + generation_number + photo_name[index:]
 
     # Check to make sure user is not attempting invalid profile picture upload.
@@ -128,7 +122,7 @@ class ReceiveMessage(webapp2.RequestHandler):
     if photo_name.startswith('profile-'):
         new_notification = create_notification(photo_name, email, invalid_profile=True)
         new_notification.put()
-        return'''
+        return
 
     # Check if user is attempting to upload profile picture for themself.
     expected_profile_pic = 'profile-' + email + '.jpg'
@@ -148,27 +142,22 @@ class ReceiveMessage(webapp2.RequestHandler):
     # and store thumbnail in thumbnails gcs bucket. Store thumbnail reference in
     # datastore.
 
-    '''if event_type == 'OBJECT_FINALIZE':
-      image = get_photo(photo_name, PHOTO_BUCKET) # not implemented
-      thumbnail = get_thumbnail(image)
+    if event_type == 'OBJECT_FINALIZE':
+      thumbnail = create_thumbnail(self, photo_name)
       store_thumbnail_in_gcs(self, thumbnail_key, thumbnail) # store under name thumbnail_key. Not implemented
       thumbnail_reference = ThumbnailReference(thumbnail_name=photo_name, thumbnail_key=thumbnail_key, poster_email_address=email)
       thumbnail_reference.put()
-      image.close()
       if profile:
         # Update contributor info
         contributor = Contributor.query(email=email)
         contributor.profile_pic = thumbnail_reference
         contributor.put()
+
     # If delete/archive message: delete thumbnail from gcs bucket and delete
     # thumbnail reference from datastore.
-    elif event_type == 'OBJECT_DELETE' or event_type == 'OBJECT_ARCHIVE':
-      delete_thumbnail(thumbnail_key, THUMBNAIL_BUCKET)
-      thumbnail_reference = ThumbnailReference.query(thumbnail_key=thumbnail_key)
-      thumbnail_reference.key.delete()'''
+    #elif event_type == 'OBJECT_DELETE' or event_type == 'OBJECT_ARCHIVE':
+      #delete_thumbnail(thumbnail_key)
     # No action performed if event_type is OBJECT_UPDATE
-
-    # self.response.status = 204
 
 # Create notification
 def create_notification(photo_name, event_type, requester_email_address, generation, overwrote_generation=None, overwritten_by_generation=None, profile=False, invalid_profile=False):
@@ -200,35 +189,38 @@ def create_notification(photo_name, event_type, requester_email_address, generat
 
   return Notification(message=message, generation=generation)
 
-# Shrinks a given image to thumbnail size.
-'''def get_thumbnail(image):
-  image.resize(width=80, height=100)
-  return image.execute_transforms(output_encoding=images.JPEG)
-
 # Retrieve photo from GCS
 # Note: file must be closed elsewhere
-def get_photo(photo_name, bucket):
-  filename = '/gs/' + bucket + '/' + photo_name
-  gcs_file = gcs.open(filename)
-  return gcs_file.read()
+def get_thumbnail(photo_name):
+  filename = '/gs/' + THUMBNAIL_BUCKET + '/' + photo_name
+  blob_key = blobstore.create_gs_key(filename)
+  return images.get_serving_url(blob_key)
+
+def create_thumbnail(self, photo_name):
+  filename = '/gs/' + PHOTO_BUCKET + '/' + photo_name
+  image = images.Image(filename=filename)
+  image.resize(width=180, height=200)
+  return image.execute_transforms(output_encoding=images.JPEG)
 
 # Write photo to GCS thumbnail bucket
-def store_thumbnail_in_gcs(self, thumbnail_key, thumbnail, bucket):
+def store_thumbnail_in_gcs(self, thumbnail_key, thumbnail):
   write_retry_params = gcs.RetryParams(backoff_factor=1.1)
-  filename = '/gs/' + bucket + '/' + thumbnail_key
-  gcs_file = gcs.open(filename, retry_params=write_retry_params)
-  gcs_file.write(thumbnail)
-  gcs_file.close()
-  self.tmp_filenames_to_clean_up.append(filename)
+  filename = '/' + THUMBNAIL_BUCKET + '/' + thumbnail_key
+  with gcs.open(filename, 'w') as filehandle:
+    filehandle.write(thumbnail)
 
 # Delete thumbnail from GCS bucket
-def delete_thumbnail(thumbnail_key, bucket):
-  filename = '/gs/' + bucket + '/' + thumbnail_key
-  files.delete(filename)'''
+def delete_thumbnail(thumbnail_key):
+  filename = '/gs/' + THUMBNAIL_BUCKET + '/' + thumbnail_key
+  blob_key = blobstore.create_gs_key(filename)
+  images.delete_serving_url(blob_key)
+  thumbnail_reference = ThumbnailReference.query(thumbnail_key=thumbnail_key)
+  thumbnail_reference.key.delete()
+  blobstore.delete(blob_key)
 
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
-    #('/photos', PhotosHandler),
+    ('/photos', PhotosHandler),
     ('/contributors', ContributorsHandler),
     ('/_ah/push-handlers/receive_message', ReceiveMessage)
 ], debug=True)
