@@ -49,8 +49,6 @@ class PhotosHandler(webapp2.RequestHandler):
   def get(self):
     # Get thumbnail references from datastore in reverse date order
     thumbnail_references = ThumbnailReference.query().order(-ThumbnailReference.date).fetch()
-    # thumbnails should be in same order as thumbnail_references
-    # possibly make a dict mapping references to thumbnails instead
     thumbnails = {}
     # For loop may not be ordered
     for thumbnail_reference in thumbnail_references:

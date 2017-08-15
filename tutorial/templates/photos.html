@@ -3,6 +3,30 @@
 
   <head>
     <title>Photos</title>
+    <link rel="stylesheet" type="text/css" href="/stylesheets/style.css">
+  <style>
+    div.thumbnail {
+      margin: 5px;
+      float: left;
+      width: 180px;
+      height: 230px;
+      border: 1px solid lavender;
+    }
+
+    div.thumbnail:hover {
+      border: 1px solid black;
+    }
+
+    div.thumbnail img {
+      width: 100%;
+      height: auto;
+    }
+
+    div.descent {
+      padding: 10px;
+      text-align: center;
+    }
+  </style>
   </head>
 
   <body>
@@ -21,9 +45,10 @@
 
     {% for img_url, thumbnail_reference in thumbnails.iteritems() %}
     <div class="thumbnail">
-      <p>{{thumbnail_reference.thumbnail_name}}</p>
+      <!--<p>{{thumbnail_reference.thumbnail_name}}</p>-->
       <img src='{{img_url}}'>
-      <p><small>{{thumbnail_reference.date.strftime('%B %d %Y %I:%M')}} UTC</small></p>
+      <div class="descent">{{thumbnail_reference.thumbnail_name}}</div>
+      <!--<p><small>{{thumbnail_reference.date.strftime('%B %d %Y %I:%M')}} UTC</small></p>-->
     </div>
     {% endfor %}
 
