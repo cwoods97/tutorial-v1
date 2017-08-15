@@ -6,23 +6,20 @@ import webapp2
 import jinja2
 import os
 import logging
-import base64
 import json
 import urllib
 import lib.cloudstorage as gcs
 from google.appengine.ext import ndb
 from google.appengine.ext import blobstore
-#from google.appengine.ext webapp import blobstore_handlers
-from google.appengine.api import users
 from google.appengine.api import images
 from google.appengine.api import app_identity
-from google.appengine.api import files
 
 template_dir = os.path.join(os.path.dirname(__file__), 'templates')
 jinja_environment = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir))
 
 THUMBNAIL_BUCKET = 'thumbnails-bucket'
 PHOTO_BUCKET = 'shared-photo-album'
+NUM_NOTIFICATIONS_TO_DISPLAY = 50
 
 # A notification has a requester, event type, photo name,
 # and date/time of creation
@@ -49,7 +46,7 @@ class Contributor(ndb.Model):
 class MainHandler(webapp2.RequestHandler):
   def get(self):
     # Fetch all notifications in reverse date order
-    notifications = Notification.query().order(-Notification.date).fetch()
+    notifications = Notification.query().order(-Notification.date).fetch(NUM_NOTIFICATIONS_TO_DISPLAY)
     template_values = {'notifications':notifications}
     template = jinja_environment.get_template("notifications.html")
     # Write to the appropriate html file
@@ -155,8 +152,9 @@ class ReceiveMessage(webapp2.RequestHandler):
 
     # If delete/archive message: delete thumbnail from gcs bucket and delete
     # thumbnail reference from datastore.
-    #elif event_type == 'OBJECT_DELETE' or event_type == 'OBJECT_ARCHIVE':
-      #delete_thumbnail(thumbnail_key)
+      filename = '/' + THUMBNAIL_BUCKET + '/' + thumbnail_key
+    elif event_type == 'OBJECT_DELETE' or event_type == 'OBJECT_ARCHIVE':
+      delete_thumbnail(thumbnail_key)
     # No action performed if event_type is OBJECT_UPDATE
 
 # Create notification
@@ -214,9 +212,10 @@ def delete_thumbnail(thumbnail_key):
   filename = '/gs/' + THUMBNAIL_BUCKET + '/' + thumbnail_key
   blob_key = blobstore.create_gs_key(filename)
   images.delete_serving_url(blob_key)
-  thumbnail_reference = ThumbnailReference.query(thumbnail_key=thumbnail_key)
+  thumbnail_reference = ThumbnailReference.query(ThumbnailReference.thumbnail_key == thumbnail_key).get()
   thumbnail_reference.key.delete()
-  blobstore.delete(blob_key)
+  filename = '/' + THUMBNAIL_BUCKET + '/' + thumbnail_key
+  gcs.delete(filename)
 
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
