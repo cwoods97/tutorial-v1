@@ -33,6 +33,7 @@ class Notification(ndb.Model):
 class ThumbnailReference(ndb.Model):
   thumbnail_name = ndb.StringProperty()
   thumbnail_key = ndb.StringProperty()
+  original_photo = ndb.StringProperty()
   date = ndb.DateTimeProperty(auto_now_add=True)
 
 # Home/news feed page (notification listing).
@@ -90,14 +91,16 @@ class ReceiveMessage(webapp2.RequestHandler):
 
     if event_type == 'OBJECT_FINALIZE':
       thumbnail = create_thumbnail(self, photo_name)
-      store_thumbnail_in_gcs(self, thumbnail_key, thumbnail) # store under name thumbnail_key. Not implemented
-      thumbnail_reference = ThumbnailReference(thumbnail_name=photo_name, thumbnail_key=thumbnail_key)
+      store_thumbnail_in_gcs(self, thumbnail_key, thumbnail) # store under name thumbnail_key
+      original_photo = get_original(photo_name)
+      thumbnail_reference = ThumbnailReference(thumbnail_name=photo_name, thumbnail_key=thumbnail_key, original_photo=original_photo)
       thumbnail_reference.put()
 
     # If delete/archive message: delete thumbnail from gcs bucket and delete
     # thumbnail reference from datastore.
     elif event_type == 'OBJECT_DELETE' or event_type == 'OBJECT_ARCHIVE':
       delete_thumbnail(thumbnail_key)
+      delete_original_url(photo_name)
     # No action performed if event_type is OBJECT_UPDATE
 
 # Create notification
@@ -117,9 +120,6 @@ def create_notification(photo_name, event_type, generation, overwrote_generation
       message = photo_name + ' was overwritten by a newer version.'
     else:
       message = photo_name + ' was deleted.'
-  else:
-    message = 'The metadata of ' + photo_name + ' was updated.'
-
   return Notification(message=message, generation=generation)
 
 # Retrieve photo from GCS
@@ -128,6 +128,16 @@ def get_thumbnail(photo_name):
   filename = '/gs/' + THUMBNAIL_BUCKET + '/' + photo_name
   blob_key = blobstore.create_gs_key(filename)
   return images.get_serving_url(blob_key)
+
+def get_original(photo_name):
+  filename = '/gs/' + PHOTO_BUCKET + '/' + photo_name
+  blob_key = blobstore.create_gs_key(filename)
+  return images.get_serving_url(blob_key)
+
+def delete_original_url(photo_name):
+  filename = '/gs/' + PHOTO_BUCKET + '/' + photo_name
+  blob_key = blobstore.create_gs_key(filename)
+  images.delete_serving_url(blob_key)
 
 def create_thumbnail(self, photo_name):
   filename = '/gs/' + PHOTO_BUCKET + '/' + photo_name

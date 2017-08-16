@@ -50,7 +50,9 @@
     <div class="gallery">
       {% for img_url, thumbnail_reference in thumbnails.iteritems() %}
       <div class="thumbnail">
-        <img src='{{img_url}}'>
+        <a href='{{thumbnail_reference.original_photo}}'>
+          <img src='{{img_url}}'>
+        </a>
         <div class="descent">{{thumbnail_reference.thumbnail_name}}</div>
       </div>
       {% endfor %}
