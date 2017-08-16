@@ -18,8 +18,9 @@
       border: 1px solid lavender;
     }
 
-    div.thumbnail:hover {
-      border: 1px solid black;
+    div.thumbnail img:hover {
+      opacity: 0.7;
+      cursor: pointer;
     }
 
     div.thumbnail img {
@@ -31,6 +32,86 @@
       padding: 10px;
       text-align: center;
     }
+
+    div.modal {
+      display: none;
+      position: fixed;
+      z-index: 1;
+      padding-top: 100px;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgb(0,0,0);
+      background-color: rgba(0,0,0,0.9);
+    }
+
+    div.modal img {
+      display: block;
+      margin: auto;
+      width: 80%;
+      height: auto;
+      -webkit-animation-name: zoom;
+      -webkit-animation-duration: 0.6s;
+      animation-name: zoom;
+      animation-duration: 0.6s;
+    }
+
+    div.modal-content {
+      display: block;
+      margin: auto;
+      width: 60%;
+      height: auto;
+      -webkit-animation-name: zoom;
+      -webkit-animation-duration: 0.6s;
+      animation-name: zoom;
+      animation-duration: 0.6s;
+    }
+
+    #caption {
+      margin: auto;
+      display: block;
+      width: 80%;
+      max-width: 700px;
+      text-align: center;
+      color: #ccc;
+      padding: 10px 0;
+      height: 150px;
+      -webkit-animation-name: zoom;
+      -webkit-animation-duration: 0.6s;
+      animation-name: zoom;
+      animation-duration: 0.6s;
+    }
+
+    @-webkit-keyframes zoom {
+      from {-webkit-transform:scale(0)}
+      to {-webkit-transform:scale(1)}
+    }
+
+    @keyframes zoom {
+      from {transform:scale(0)}
+      to {transform:scale(1)}
+    }
+
+    span.close {
+      position: absolute;
+      top: 15px;
+      right: 35px;
+      color: #f1f1f1;
+      font-size: 40px;
+      font-weight: bold;
+      transition: 0.3s;
+    }
+
+    span.close:hover,
+    span.close:focus {
+      color: #bbb;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+
   </style>
   </head>
 
@@ -50,11 +131,34 @@
     <div class="gallery">
       {% for img_url, thumbnail_reference in thumbnails.iteritems() %}
       <div class="thumbnail">
-        <a href='{{thumbnail_reference.original_photo}}'>
-          <img src='{{img_url}}'>
-        </a>
+        <!--<a href='#{{thumbnail_reference.thumbnail_key}}'>-->
+          <img id='{{thumbnail_reference.thumbnail_name}}' src='{{img_url}}' alt='{{thumbnail_reference.thumbnail_name}}'>
+          <!--</a>-->
         <div class="descent">{{thumbnail_reference.thumbnail_name}}</div>
       </div>
+
+      <div id="myModal" class="modal">
+        <span class="close" onclick="document.getElementById('myModal').style.display='none'">&times;</span>
+        <img class="modal-content" id='img01'>
+        <div id="caption"></div>
+      </div>
+
+      <script>
+        var modal = document.getElementById('myModal');
+        var img = document.getElementById('{{thumbnail_reference.thumbnail_name}}');
+        var modalImg = document.getElementById('img01');
+        var captionText = document.getElementById("caption");
+        img.onclick = function(){
+          modal.style.display = "block";
+          modalImg.src = '{{thumbnail_reference.original_photo}}';
+          captionText.innerHTML = this.alt;
+        }
+
+        var span = document.getElementsByClassName("close")[0];
+        span.onclick = function() {
+          modal.style.display = "none";
+        }
+      </script>
       {% endfor %}
     </div>
 

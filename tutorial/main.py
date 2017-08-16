@@ -83,6 +83,8 @@ class ReceiveMessage(webapp2.RequestHandler):
     exists_notification = Notification.query(Notification.message == new_notification.message, Notification.generation == new_notification.generation).get()
     if exists_notification:
       return
+    if new_notification.message == "":
+      return
     new_notification.put() # put into database
 
     # If create message: get photo from photos gcs bucket, shrink to thumbnail,
@@ -120,6 +122,8 @@ def create_notification(photo_name, event_type, generation, overwrote_generation
       message = photo_name + ' was overwritten by a newer version.'
     else:
       message = photo_name + ' was deleted.'
+  else:
+    message = ""
   return Notification(message=message, generation=generation)
 
 # Retrieve photo from GCS
