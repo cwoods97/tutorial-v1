@@ -8,6 +8,7 @@ import os
 import logging
 import json
 import urllib
+import collections
 import lib.cloudstorage as gcs
 from google.appengine.ext import ndb
 from google.appengine.ext import blobstore
@@ -49,7 +50,7 @@ class PhotosHandler(webapp2.RequestHandler):
   def get(self):
     # Get thumbnail references from datastore in reverse date order
     thumbnail_references = ThumbnailReference.query().order(-ThumbnailReference.date).fetch()
-    thumbnails = {}
+    thumbnails = collections.OrderedDict()
     # For loop may not be ordered
     for thumbnail_reference in thumbnail_references:
       img_url = get_thumbnail(thumbnail_reference.thumbnail_key)
