@@ -5,11 +5,16 @@
     <title>Photos</title>
     <link rel="stylesheet" type="text/css" href="/stylesheets/style.css">
   <style>
+    div.gallery {
+      margin-left: 12%;
+      margin-right: 10%;
+    }
+
     div.thumbnail {
       margin: 5px;
       float: left;
       width: 180px;
-      height: 300px;
+      height: 240px;
       border: 1px solid lavender;
     }
 
@@ -18,8 +23,8 @@
     }
 
     div.thumbnail img {
-      width: 100%;
-      height: auto;
+      display: block;
+      margin: auto;
     }
 
     div.descent {
@@ -42,15 +47,14 @@
     Use a for loop where indices of thumbnail references and their corresponding
     thumbnails match up so that info from references can be assigned to the appropriate
     thumbnail image-->
-
-    {% for img_url, thumbnail_reference in thumbnails.iteritems() %}
-    <div class="thumbnail">
-      <!--<p>{{thumbnail_reference.thumbnail_name}}</p>-->
-      <img src='{{img_url}}'>
-      <div class="descent">{{thumbnail_reference.thumbnail_name}}</div>
-      <!--<p><small>{{thumbnail_reference.date.strftime('%B %d %Y %I:%M')}} UTC</small></p>-->
+    <div class="gallery">
+      {% for img_url, thumbnail_reference in thumbnails.iteritems() %}
+      <div class="thumbnail">
+        <img src='{{img_url}}'>
+        <div class="descent">{{thumbnail_reference.thumbnail_name}}</div>
+      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
 
   </body>
 </html>
