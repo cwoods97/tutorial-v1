@@ -79,10 +79,9 @@ class ReceiveMessage(webapp2.RequestHandler):
     thumbnail_key = photo_name[:index] + generation_number + photo_name[index:]
 
     new_notification = create_notification(photo_name, event_type, generation_number, overwrote_generation=overwrote_generation, overwritten_by_generation=overwritten_by_generation)
-    notifications = Notification.query().fetch()
-    for notification in notifications:
-      if new_notification == notification:
-        return
+    exists_notification = Notification.query(Notification.message == new_notification.message, Notification.generation == new_notification.generation).get()
+    if exists_notification:
+      return
     new_notification.put() # put into database
 
     # If create message: get photo from photos gcs bucket, shrink to thumbnail,
