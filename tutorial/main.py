@@ -52,7 +52,6 @@ class PhotosHandler(webapp2.RequestHandler):
     # Get thumbnail references from datastore in reverse date order
     thumbnail_references = ThumbnailReference.query().order(-ThumbnailReference.date).fetch()
     thumbnails = collections.OrderedDict()
-    # For loop may not be ordered
     for thumbnail_reference in thumbnail_references:
       img_url = get_thumbnail(thumbnail_reference.thumbnail_key)
       thumbnails[img_url] = thumbnail_reference
@@ -92,9 +91,9 @@ class ReceiveMessage(webapp2.RequestHandler):
     # datastore.
 
     if event_type == 'OBJECT_FINALIZE':
-      thumbnail = create_thumbnail(self, photo_name)
+      thumbnail = create_thumbnail(photo_name)
       store_thumbnail_in_gcs(self, thumbnail_key, thumbnail) # store under name thumbnail_key
-      original_photo = get_original(photo_name)
+      original_photo = get_original(photo_name, generation_number)
       thumbnail_reference = ThumbnailReference(thumbnail_name=photo_name, thumbnail_key=thumbnail_key, original_photo=original_photo)
       thumbnail_reference.put()
 
@@ -102,7 +101,6 @@ class ReceiveMessage(webapp2.RequestHandler):
     # thumbnail reference from datastore.
     elif event_type == 'OBJECT_DELETE' or event_type == 'OBJECT_ARCHIVE':
       delete_thumbnail(thumbnail_key)
-      delete_original_url(photo_name)
     # No action performed if event_type is OBJECT_UPDATE
 
 # Create notification
@@ -127,23 +125,15 @@ def create_notification(photo_name, event_type, generation, overwrote_generation
   return Notification(message=message, generation=generation)
 
 # Retrieve photo from GCS
-# Note: file must be closed elsewhere
 def get_thumbnail(photo_name):
   filename = '/gs/' + THUMBNAIL_BUCKET + '/' + photo_name
   blob_key = blobstore.create_gs_key(filename)
   return images.get_serving_url(blob_key)
 
-def get_original(photo_name):
-  filename = '/gs/' + PHOTO_BUCKET + '/' + photo_name
-  blob_key = blobstore.create_gs_key(filename)
-  return images.get_serving_url(blob_key)
+def get_original(photo_name, generation):
+  return 'https://storage.googleapis.com/' + PHOTO_BUCKET + '/' + photo_name + '?generation=' + generation
 
-def delete_original_url(photo_name):
-  filename = '/gs/' + PHOTO_BUCKET + '/' + photo_name
-  blob_key = blobstore.create_gs_key(filename)
-  images.delete_serving_url(blob_key)
-
-def create_thumbnail(self, photo_name):
+def create_thumbnail(photo_name):
   filename = '/gs/' + PHOTO_BUCKET + '/' + photo_name
   image = images.Image(filename=filename)
   image.resize(width=180, height=200)

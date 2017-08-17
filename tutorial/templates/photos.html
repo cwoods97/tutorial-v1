@@ -50,18 +50,8 @@
     div.modal img {
       display: block;
       margin: auto;
-      width: 80%;
-      height: auto;
-      -webkit-animation-name: zoom;
-      -webkit-animation-duration: 0.6s;
-      animation-name: zoom;
-      animation-duration: 0.6s;
-    }
-
-    div.modal-content {
-      display: block;
-      margin: auto;
       width: 60%;
+      max-width: 700px;
       height: auto;
       -webkit-animation-name: zoom;
       -webkit-animation-duration: 0.6s;
@@ -139,7 +129,7 @@
 
       <div id="myModal" class="modal">
         <span class="close" onclick="document.getElementById('myModal').style.display='none'">&times;</span>
-        <img class="modal-content" id='img01'>
+        <img id='img01'>
         <div id="caption"></div>
       </div>
 
